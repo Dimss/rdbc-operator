@@ -1,9 +1,8 @@
 apiVersion: rdbc.cnative/v1alpha1
 kind: Rdbc
 metadata:
-  name: example-rdbc
-  namespace: redis
+  name: test-2
+  namespace: default
 spec:
-  namespace: "test"
   name: "this is my name"
   size: "100Gi"

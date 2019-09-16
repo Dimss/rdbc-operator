@@ -11,18 +11,17 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
-	"github.com/rdbc-operator/pkg/apis"
-	"github.com/rdbc-operator/pkg/controller"
-
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
-	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
+	"github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/restmapper"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
+	"github.com/rdbc-operator/pkg/apis"
+	"github.com/rdbc-operator/pkg/controller"
 	"github.com/spf13/pflag"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -79,6 +78,10 @@ func main() {
 		log.Error(err, "")
 		os.Exit(1)
 	}
+
+	//clientset, err := kubernetes.NewForConfig(cfg)
+	//secrets, err := clientset.CoreV1().Secrets("redis").Get("redis-enterprise", metav1.GetOptions{})
+	//log.Info(secrets.Name)
 
 	ctx := context.TODO()
 	// Become the leader before proceeding

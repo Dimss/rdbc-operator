@@ -10,7 +10,7 @@ import (
 // RdbcSpec defines the desired state of Rdbc
 // +k8s:openapi-gen=true
 type RdbcSpec struct {
-	Namespace string `json:"namespace"`
+	//Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Size      string `json:"size"`
 }
@@ -27,7 +27,6 @@ type RdbcStatus struct {
 // Rdbc is the Schema for the rdbcs API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=rdbcs,scope=Cluster
 type Rdbc struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

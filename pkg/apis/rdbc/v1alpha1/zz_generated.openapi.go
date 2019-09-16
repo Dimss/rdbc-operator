@@ -66,16 +66,11 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 			SchemaProps: spec.SchemaProps{
 				Description: "RdbcSpec defines the desired state of Rdbc",
 				Properties: map[string]spec.Schema{
-					"namespace": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Description: "Namespace string `json:\"namespace\"`",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"size": {
@@ -85,7 +80,7 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 						},
 					},
 				},
-				Required: []string{"namespace", "name", "size"},
+				Required: []string{"name", "size"},
 			},
 		},
 		Dependencies: []string{},

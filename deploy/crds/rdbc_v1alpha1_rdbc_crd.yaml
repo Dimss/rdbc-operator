@@ -30,13 +30,11 @@ spec:
         spec:
           properties:
             name:
-              type: string
-            namespace:
+              description: Namespace string `json:"namespace"`
               type: string
             size:
               type: string
           required:
-          - namespace
           - name
           - size
           type: object
