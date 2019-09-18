@@ -13,6 +13,7 @@ type RedisDb struct {
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	MemorySize int    `json:"memory_size"`
+	Password   string `json:"authentication_redis_pass"`
 	uid        float64
 	endpoint   string
 }
@@ -25,17 +26,18 @@ type RedisDbApi struct {
 	Response map[string]interface{} `json:"-"`
 }
 
-func NewRedisDb(dbName string, size int) *RedisDb {
+func NewRedisDb(dbName string, size int, password string) *RedisDb {
 	req := new(RedisDb)
 	req.Name = dbName
+	req.Password = password
 	// As for now, the Reids DB operator will support only Redis DB creation
 	req.Type = "redis"
-	// User set DB size in Megabytes, API uses memory size in Kilobytes
-	req.MemorySize = size * 1024
+	// User set DB size in Megabytes, API uses memory size in bytes
+	req.MemorySize = size * 1024 * 1024
 	return req
 }
 
-func (rdb *RedisDb) CreateDb(redisConfig RedisConfig) error {
+func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
 
 	url := redisConfig.APIUrl + "/v1/bdbs"
 	client := &http.Client{}
@@ -72,7 +74,7 @@ func (rdb *RedisDb) CreateDb(redisConfig RedisConfig) error {
 	return nil
 }
 
-func (rdb *RedisDb) GetDb(redisConfig RedisConfig) error {
+func (rdb *RedisDb) GetDb(redisConfig *RedisConfig) error {
 	if rdb.uid == 0 {
 		return fmt.Errorf("uid is not set, can't get db details for db: %s", rdb.Name)
 	}
@@ -104,6 +106,25 @@ func (rdb *RedisDb) GetDb(redisConfig RedisConfig) error {
 		log.Info(fmt.Sprintf("db endpoint %s", rdb.endpoint))
 	} else {
 		return fmt.Errorf("error while getting endpoints from response")
+	}
+	return nil
+}
+
+func (rdb *RedisDb) DeleteDb(redisConfig *RedisConfig) error {
+	if rdb.uid == 0 {
+		return fmt.Errorf("uid is not set, can't get db details for db: %s", rdb.Name)
+	}
+	url := fmt.Sprintf("%v/v1/bdbs/%v", redisConfig.APIUrl, rdb.uid)
+	log.Info(fmt.Sprintf("DELETE db Url: %s", url))
+	client := &http.Client{}
+	req, err := http.NewRequest("DELETE", url, nil)
+	req.SetBasicAuth(redisConfig.Username, redisConfig.Password)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to executed DELETE request for url: %s", url)
+	}
+	if resp.StatusCode > 299 {
+		return fmt.Errorf("bad status code: %d, for DELETE request: %s", resp.StatusCode, url)
 	}
 	return nil
 }

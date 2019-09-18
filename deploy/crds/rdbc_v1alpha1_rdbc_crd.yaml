@@ -31,12 +31,15 @@ spec:
           properties:
             name:
               type: string
+            password:
+              type: string
             size:
               format: int64
               type: integer
           required:
           - name
           - size
+          - password
           type: object
         status:
           properties:

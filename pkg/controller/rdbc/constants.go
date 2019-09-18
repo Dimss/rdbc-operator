@@ -9,4 +9,6 @@ const (
 
 	// Redis Service name for API access
 	RedisAPI = "REDIS_API"
+
+	rdbcFinalizer = "finalizer.rdbc.cnative"
 )

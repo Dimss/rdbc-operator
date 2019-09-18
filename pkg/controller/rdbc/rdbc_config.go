@@ -16,8 +16,8 @@ type RedisConfig struct {
 	CredSecret string
 }
 
-func (r *ReconcileRdbc) setRedisConfigs() (RedisConfig, error) {
-	redisConfig := RedisConfig{}
+func (r *ReconcileRdbc) setRedisConfigs() (*RedisConfig, error) {
+	redisConfig := &RedisConfig{}
 	// Get Redis Credentials Secret name
 	redisCredSecretName, err := GetRedisCredSecretName()
 	if err != nil {
@@ -41,7 +41,7 @@ func (r *ReconcileRdbc) setRedisConfigs() (RedisConfig, error) {
 	redisConfig.CredSecret = redisCredSecretName
 	redisConfig.APIUrl = redisServiceName
 	// Set Redis Credentials
-	err = r.setRedisCreds(&redisConfig)
+	err = r.setRedisCreds(redisConfig)
 	if err != nil {
 		log.Error(err, "Failed to set Redis credentials configs")
 		os.Exit(1)

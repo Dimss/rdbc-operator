@@ -78,8 +78,14 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 							Format: "int32",
 						},
 					},
+					"password": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
-				Required: []string{"name", "size"},
+				Required: []string{"name", "size", "password"},
 			},
 		},
 		Dependencies: []string{},

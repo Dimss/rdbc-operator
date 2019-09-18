@@ -10,8 +10,9 @@ import (
 // RdbcSpec defines the desired state of Rdbc
 // +k8s:openapi-gen=true
 type RdbcSpec struct {
-	Name string `json:"name"`
-	Size int    `json:"size"`
+	Name     string `json:"name"`
+	Size     int    `json:"size"`
+	Password string `json:"password"`
 }
 
 // RdbcStatus defines the observed state of Rdbc
