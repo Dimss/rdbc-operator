@@ -10,16 +10,16 @@ import (
 // RdbcSpec defines the desired state of Rdbc
 // +k8s:openapi-gen=true
 type RdbcSpec struct {
-	//Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	Size      string `json:"size"`
+	Name string `json:"name"`
+	Size int    `json:"size"`
 }
 
 // RdbcStatus defines the observed state of Rdbc
 // +k8s:openapi-gen=true
 type RdbcStatus struct {
-	DbEndpointUrl string `json:"dbEndpointUrl"`
-	DbEndpointIp  string `json:"dbEndpointIp"`
+	DbEndpointUrl string  `json:"dbEndpointUrl"`
+	DbUid         float64 `json:"dbUid"`
+	Message       string  `json:"message"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

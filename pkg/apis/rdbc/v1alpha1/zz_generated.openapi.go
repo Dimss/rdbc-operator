@@ -68,15 +68,14 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Namespace string `json:\"namespace\"`",
-							Type:        []string{"string"},
-							Format:      "",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 					"size": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Type:   []string{"integer"},
+							Format: "int32",
 						},
 					},
 				},
@@ -99,14 +98,20 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcStatus(ref common.ReferenceCallback) comm
 							Format: "",
 						},
 					},
-					"dbEndpointIp": {
+					"dbUid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"number"},
+							Format: "double",
+						},
+					},
+					"message": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",
 						},
 					},
 				},
-				Required: []string{"dbEndpointUrl", "dbEndpointIp"},
+				Required: []string{"dbEndpointUrl", "dbUid", "message"},
 			},
 		},
 		Dependencies: []string{},

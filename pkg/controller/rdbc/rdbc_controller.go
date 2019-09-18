@@ -2,10 +2,10 @@ package rdbc
 
 import (
 	"context"
+	"fmt"
 	rdbcv1alpha1 "github.com/rdbc-operator/pkg/apis/rdbc/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -84,14 +84,12 @@ type ReconcileRdbc struct {
 func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling Rdbc")
-
 	redisConfig, err := r.setRedisConfigs()
 	if err != nil {
 		log.Error(err, "Failed to init Redis Configurations")
 		os.Exit(1)
 	}
 	reqLogger.Info(redisConfig.APIUrl)
-
 	// Fetch the Rdbc instance
 	instance := &rdbcv1alpha1.Rdbc{}
 	err = r.client.Get(context.TODO(), request.NamespacedName, instance)
@@ -105,74 +103,61 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	if instance.Status.DbEndpointUrl != "" {
+		// All good, no changes requires
+		return reconcile.Result{}, nil
+	}
+	if instance.Status.DbEndpointUrl == "" && instance.Status.DbUid != 0 {
+		// Only fetch DB details and update CR endpoint
+		err = r.getDb(instance, redisConfig)
+		if err != nil {
+			reqLogger.Error(err, "failed to create Redis DB")
+			return reconcile.Result{}, err
+		}
+	} else {
+		// Run entire loop,
+		// Create DB
+		err = r.createDb(instance, redisConfig)
+		if err != nil {
+			reqLogger.Error(err, "failed to create Redis DB")
+			return reconcile.Result{}, err
+		}
+		// Fetch db details
+		err = r.getDb(instance, redisConfig)
+		if err != nil {
+			reqLogger.Error(err, "failed to create Redis DB")
+			return reconcile.Result{}, err
+		}
 
-	//s := client.ListOptions{Namespace: "redis", client}
-
-	//secret := &corev1.Secret{}
-	//
-	//err = r.client.Get(context.TODO(), client.ObjectKey{Name: "redis-enterprise", Namespace: "redis"}, secret)
-
-	//
-	//externalSecrets := corev1.SecretList{}
-	//externalSecretsFilter := client.ListOptions{
-	//	//LabelSelector: labels.SelectorFromSet(map[string]string{"app": "redis-enterprise"}),
-	//	Namespace:     "redis",
-	//}
-	//if err = r.client.List(context.TODO(), &externalSecretsFilter, &externalSecrets); err != nil {
-	//	return reconcile.Result{}, fmt.Errorf("failed to list secrets: %v", err)
-	//}
-
-	//err = r.client.Get(context.TODO(), request.NamespacedName, secret)
-
-
-	// Define a new Pod object
-	//pod := newPodForCR(instance)
-	//
-	//// Set Rdbc instance as the owner and controller
-	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-	//	return reconcile.Result{}, err
-	//}
-	//
-	//// Check if this Pod already exists
-	//found := &corev1.Pod{}
-	//err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	//if err != nil && errors.IsNotFound(err) {
-	//	reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-	//	err = r.client.Create(context.TODO(), pod)
-	//	if err != nil {
-	//		return reconcile.Result{}, err
-	//	}
-	//
-	//	// Pod created successfully - don't requeue
-	//	return reconcile.Result{}, nil
-	//} else if err != nil {
-	//	return reconcile.Result{}, err
-	//}
-	//
-	//// Pod already exists - don't requeue
-	//reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	}
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *rdbcv1alpha1.Rdbc) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
+func (r *ReconcileRdbc) createDb(instance *rdbcv1alpha1.Rdbc, redisConfig RedisConfig) error {
+	db := NewRedisDb(instance.Spec.Name, instance.Spec.Size)
+	err := db.CreateDb(redisConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create Redis DB")
 	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+	instance.Status.DbUid = db.uid
+	// Update CR object
+	err = r.client.Status().Update(context.TODO(), instance)
+	if err != nil {
+		return fmt.Errorf("failed to update uid in Rdbc Status, db name: %v", db.Name)
 	}
+	return nil
+}
+
+func (r *ReconcileRdbc) getDb(instance *rdbcv1alpha1.Rdbc, redisConfig RedisConfig) error {
+	db := RedisDb{uid: instance.Status.DbUid}
+	err := db.GetDb(redisConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get Redis DB details")
+	}
+	instance.Status.DbEndpointUrl = db.endpoint
+	err = r.client.Status().Update(context.TODO(), instance)
+	if err != nil {
+		return fmt.Errorf("failed to update endpoints in Rdbc Status, db name: %v", db.Name)
+	}
+	return nil
 }

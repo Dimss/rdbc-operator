@@ -9,7 +9,7 @@ spec:
     listKind: RdbcList
     plural: rdbcs
     singular: rdbc
-  scope: Cluster
+  scope: Namespaced
   subresources:
     status: {}
   validation:
@@ -30,23 +30,27 @@ spec:
         spec:
           properties:
             name:
-              description: Namespace string `json:"namespace"`
               type: string
             size:
-              type: string
+              format: int64
+              type: integer
           required:
           - name
           - size
           type: object
         status:
           properties:
-            dbEndpointIp:
-              type: string
             dbEndpointUrl:
+              type: string
+            dbUid:
+              format: double
+              type: number
+            message:
               type: string
           required:
           - dbEndpointUrl
-          - dbEndpointIp
+          - dbUid
+          - message
           type: object
   version: v1alpha1
   versions:
