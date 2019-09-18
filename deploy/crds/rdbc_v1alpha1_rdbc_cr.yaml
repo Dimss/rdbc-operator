@@ -1,9 +1,9 @@
 apiVersion: rdbc.cnative/v1alpha1
 kind: Rdbc
 metadata:
-  name: my-app-db-requiest
+  name: my-app-db-request-1
   namespace: default
 spec:
-  name: "my-app-db1"
-  password: "1122"
+  name: "my-app-db2"
+  password: "1234"
   size: 100

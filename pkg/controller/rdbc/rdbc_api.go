@@ -38,7 +38,7 @@ func NewRedisDb(dbName string, size int, password string) *RedisDb {
 }
 
 func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
-
+	// Compose URL
 	url := redisConfig.APIUrl + "/v1/bdbs"
 	client := &http.Client{}
 	b, err := json.Marshal(rdb)
@@ -50,23 +50,26 @@ func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed compose new POST request for url: %s", url)
 	}
+	// Set auth
 	req.SetBasicAuth(redisConfig.Username, redisConfig.Password)
 	req.Header.Set("Content-Type", "application/json")
+	// Exec request
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Error(err, "failed execute request POST request ")
 		return fmt.Errorf("failed execute POST request for url: %s", url)
 	}
 	bodyText, err := ioutil.ReadAll(resp.Body)
+	// Assume any code bellow 299 is valid
 	if resp.StatusCode > 299 {
 		return fmt.Errorf("bad status code: %d, body: %s", resp.StatusCode, bodyText)
 	}
-	redisDBCreateResponse := RedisDbApi{}
-	err = json.Unmarshal([]byte(string(bodyText)), &redisDBCreateResponse.Response)
+	redisDbApi := RedisDbApi{}
+	err = json.Unmarshal([]byte(string(bodyText)), &redisDbApi.Response)
 	if err != nil {
 		return fmt.Errorf("error while unmarshalling response")
 	}
-	if n, ok := redisDBCreateResponse.Response["uid"].(float64); ok {
+	if n, ok := redisDbApi.Response["uid"].(float64); ok {
 		rdb.uid = n
 	} else {
 		return fmt.Errorf("error while getting UID from response")
@@ -75,20 +78,25 @@ func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
 }
 
 func (rdb *RedisDb) GetDb(redisConfig *RedisConfig) error {
+	// IF UID is not set, do stop execution and return
 	if rdb.uid == 0 {
 		return fmt.Errorf("uid is not set, can't get db details for db: %s", rdb.Name)
 	}
+	// Compose URL
 	url := fmt.Sprintf("%v/v1/bdbs/%v", redisConfig.APIUrl, rdb.uid)
 	log.Info(fmt.Sprintf("get DB Url: %s", url))
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Set("Content-Type", "application/json")
+	// Set Auth
 	req.SetBasicAuth(redisConfig.Username, redisConfig.Password)
+	// Exec request
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to executed GET request for url: %s", url)
 	}
 	bodyText, err := ioutil.ReadAll(resp.Body)
+	// Assume any code bellow 299 is valid
 	if resp.StatusCode > 299 {
 		return fmt.Errorf("bad status code: %d, body: %s", resp.StatusCode, bodyText)
 	}
@@ -111,18 +119,23 @@ func (rdb *RedisDb) GetDb(redisConfig *RedisConfig) error {
 }
 
 func (rdb *RedisDb) DeleteDb(redisConfig *RedisConfig) error {
+	// IF UID is not set, do stop execution and return
 	if rdb.uid == 0 {
 		return fmt.Errorf("uid is not set, can't get db details for db: %s", rdb.Name)
 	}
+	// Compose URL
 	url := fmt.Sprintf("%v/v1/bdbs/%v", redisConfig.APIUrl, rdb.uid)
 	log.Info(fmt.Sprintf("DELETE db Url: %s", url))
 	client := &http.Client{}
 	req, err := http.NewRequest("DELETE", url, nil)
+	// Set Auth
 	req.SetBasicAuth(redisConfig.Username, redisConfig.Password)
+	// Exec request
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to executed DELETE request for url: %s", url)
 	}
+	// Assume any code bellow 299 is valid
 	if resp.StatusCode > 299 {
 		return fmt.Errorf("bad status code: %d, for DELETE request: %s", resp.StatusCode, url)
 	}

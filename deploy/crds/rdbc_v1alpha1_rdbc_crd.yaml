@@ -9,7 +9,7 @@ spec:
     listKind: RdbcList
     plural: rdbcs
     singular: rdbc
-  scope: Namespaced
+  scope: Cluster
   subresources:
     status: {}
   validation:
