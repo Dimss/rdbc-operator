@@ -2,5 +2,4 @@
 mv /tmp/src /go/src/rdbc-operator
 cd /go/src/rdbc-operator/cmd/manager
 export GO111MODULE=on
-#export GOPROXY=file:///go/src/rdbc-operator/modvendor
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o /go/bin/rdbc-operator
