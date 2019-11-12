@@ -30,7 +30,7 @@ spec:
         spec:
           properties:
             dbId:
-              format: int64
+              format: int32
               type: integer
             name:
               type: string
