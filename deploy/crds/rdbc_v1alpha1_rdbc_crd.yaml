@@ -9,7 +9,7 @@ spec:
     listKind: RdbcList
     plural: rdbcs
     singular: rdbc
-  scope: Cluster
+  scope: Namespaced
   subresources:
     status: {}
   validation:
@@ -29,6 +29,9 @@ spec:
           type: object
         spec:
           properties:
+            dbId:
+              format: int64
+              type: integer
             name:
               type: string
             password:
@@ -39,7 +42,6 @@ spec:
           required:
           - name
           - size
-          - password
           type: object
         status:
           properties:

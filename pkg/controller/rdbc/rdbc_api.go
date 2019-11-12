@@ -6,15 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"time"
 )
 
 type RedisDb struct {
+	DbId       int    `json:"dbId"`
 	Name       string `json:"name"`
 	Type       string `json:"type"`
 	MemorySize int    `json:"memory_size"`
 	Password   string `json:"authentication_redis_pass"`
-	uid        float64
 	endpoint   string
 }
 
@@ -42,6 +44,7 @@ func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
 	url := redisConfig.APIUrl + "/v1/bdbs"
 	client := &http.Client{}
 	b, err := json.Marshal(rdb)
+
 	if err != nil {
 		return fmt.Errorf("failed to Marshal RedisDb for DB request: %s", rdb.Name)
 	}
@@ -79,7 +82,7 @@ func (rdb *RedisDb) CreateDb(redisConfig *RedisConfig) error {
 
 func (rdb *RedisDb) GetDb(redisConfig *RedisConfig) error {
 	// IF UID is not set, do stop execution and return
-	if rdb.uid == 0 {
+	if rdb.DbId == 0 {
 		return fmt.Errorf("uid is not set, can't get db details for db: %s", rdb.Name)
 	}
 	// Compose URL
@@ -117,6 +120,8 @@ func (rdb *RedisDb) GetDb(redisConfig *RedisConfig) error {
 	}
 	return nil
 }
+
+
 
 func (rdb *RedisDb) DeleteDb(redisConfig *RedisConfig) error {
 	// IF UID is not set, do stop execution and return

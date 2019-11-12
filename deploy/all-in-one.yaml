@@ -72,7 +72,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: rdbc-operator
-  namespace: op
+  namespace: redis
 roleRef:
   kind: ClusterRole
   name: rdbc-operator
@@ -95,9 +95,7 @@ spec:
       serviceAccountName: rdbc-operator
       containers:
         - name: rdbc-operator
-          image: dimssss/rdbc:0.1
-          command:
-          - rdbc-operator
+          image: docker.io/dimssss/rdbc-operator:0.2
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
@@ -115,4 +113,4 @@ spec:
             - name: REDIS_NS
               value: "redis"
             - name: REDIS_API
-              value: "https://redis-enterprise-redis.router.default.svc.cluster.local"
+              value: "https://redis-enterprise-ui.redis.svc.cluster.local:8443"
