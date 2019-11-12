@@ -73,8 +73,13 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 	redisDb, err := r.initRedisDb(rdbc, redis)
+	if err != nil {
+		reqLogger.Error(err, "Failed to init RedisDB")
+		return reconcile.Result{}, err
+	}
+
 	// Init finalizers
-	err = r.initFinalization(rdbc, redis, redisDb)
+	isRdbcMarkedToBeDeleted, err := r.initFinalization(rdbc, redis, redisDb)
 	if err != nil {
 		reqLogger.Error(err, "Failed to initialize finalizer")
 		if err := r.updateRdbcStatus(fmt.Sprintf("%v", err), rdbc); err != nil {
@@ -82,11 +87,10 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		}
 		return reconcile.Result{}, err
 	}
-
-	if err != nil {
-		reqLogger.Error(err, "Failed to init RedisDB")
+	if isRdbcMarkedToBeDeleted {
 		return reconcile.Result{}, err
 	}
+
 	dbExists, err := redis.CheckIfDbExists(redisDb.Uid)
 	if err != nil {
 		reqLogger.Error(err, "Failed to check if db already exists")
@@ -131,31 +135,31 @@ func (r *ReconcileRdbc) initRedisDb(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig)
 	}
 }
 
-func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig, redisDb *RedisDb) error {
+func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig, redisDb *RedisDb) (bool, error) {
 	isRdbcMarkedToBeDeleted := rdbc.GetDeletionTimestamp() != nil
 	if isRdbcMarkedToBeDeleted {
 		if contains(rdbc.GetFinalizers(), rdbcFinalizer) {
 			if err := r.finalizeRdbc(redis, redisDb); err != nil {
 				log.Error(err, "Failed to run finalizer")
-				return err
+				return isRdbcMarkedToBeDeleted, err
 			}
 			rdbc.SetFinalizers(remove(rdbc.GetFinalizers(), rdbcFinalizer))
 			err := r.client.Update(context.TODO(), rdbc)
 			if err != nil {
 				log.Error(err, "Failed to delete finalizer")
-				return err
+				return isRdbcMarkedToBeDeleted, err
 			}
 		}
-		return nil
+		return isRdbcMarkedToBeDeleted, nil
 	}
 
 	if !contains(rdbc.GetFinalizers(), rdbcFinalizer) {
 		if err := r.addFinalizer(rdbc); err != nil {
 			log.Error(err, "Failed to add finalizer")
-			return err
+			return isRdbcMarkedToBeDeleted, err
 		}
 	}
-	return nil
+	return isRdbcMarkedToBeDeleted, nil
 }
 
 func (r *ReconcileRdbc) finalizeRdbc(redis *RedisConfig, redisDb *RedisDb) error {
