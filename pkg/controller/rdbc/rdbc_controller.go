@@ -97,24 +97,36 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 	if dbExists {
-		return r.syncCR(rdbc, redisDb)
+		return r.syncCR(rdbc, redisDb, redis)
 	} else {
 		if err := redis.CreateDb(redisDb); err != nil {
 			reqLogger.Error(err, "unable create new db")
 			return reconcile.Result{}, err
 		}
-		return r.syncCR(rdbc, redisDb)
+		return r.syncCR(rdbc, redisDb, redis)
 	}
 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb) (reconcile.Result, error) {
+func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis *RedisConfig) (reconcile.Result, error) {
+	origDbId := rdbc.Spec.DbId
 	rdbc.Spec.DbId = redisDb.Uid
 	rdbc.Spec.Name = redisDb.Name
 	rdbc.Spec.Size = redisDb.MemorySize
+	// Once the spec is updated with valid redis db parameters update the CR in K8S
+	// If for some reason, the update is failed, make sure that it's not a new db request
+	// if it's new db request, remove the created db
 	if err := r.client.Update(context.TODO(), rdbc); err != nil {
 		log.Error(err, "failed to update RDBC CR", "Name", rdbc.Name)
+		if origDbId == 0 {
+			log.Info(fmt.Sprintf("unable to update RDBC CR afeter new DB created, gonna remove new DB, dbid: %d", redisDb.Uid))
+			// If wasn't able to delete new created db, we are fucked up!
+			if err := redis.DeleteDb(redisDb); err != nil {
+				log.Error(err, "Houston, we have a problem! Kill me now, or I'll destroy you Redis cluster, madafaka!")
+				return reconcile.Result{}, err
+			}
+		}
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
