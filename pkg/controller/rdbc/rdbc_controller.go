@@ -95,6 +95,9 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 	dbExists, err := redis.CheckIfDbExists(redisDb.Uid)
 	if err != nil {
 		reqLogger.Error(err, "Failed to check if db already exists")
+		if err := r.updateRdbcStatus(fmt.Sprintf("%v", err), rdbc); err != nil {
+			reqLogger.Error(err, "Failed to update CR status")
+		}
 		return reconcile.Result{}, err
 	}
 	if dbExists {
@@ -102,6 +105,9 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 	} else {
 		if err := redis.CreateDb(redisDb); err != nil {
 			reqLogger.Error(err, "unable create new db")
+			if err := r.updateRdbcStatus(fmt.Sprintf("%v", err), rdbc); err != nil {
+				reqLogger.Error(err, "Failed to update CR status")
+			}
 			return reconcile.Result{}, err
 		}
 		return r.syncCR(rdbc, redisDb, redis)
@@ -132,6 +138,9 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 			}
 		}
 		return reconcile.Result{}, err
+	}
+	if err := r.updateRdbcStatus(fmt.Sprintf("%v", "db is ready"), rdbc); err != nil {
+		log.Error(err, "Failed to update CR status")
 	}
 	return reconcile.Result{}, nil
 }
