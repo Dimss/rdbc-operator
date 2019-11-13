@@ -1,7 +1,6 @@
 module github.com/rdbc-operator
 
 require (
-	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.0
 	github.com/google/uuid v1.1.1
 	github.com/operator-framework/operator-sdk v0.10.1-0.20190911145116-334c667503d0

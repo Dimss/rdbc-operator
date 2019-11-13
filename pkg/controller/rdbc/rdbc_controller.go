@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	rdbcv1alpha1 "github.com/rdbc-operator/pkg/apis/rdbc/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 	"strconv"
 )
@@ -37,6 +40,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// Watch for changes to primary resource Rdbc
 	err = c.Watch(&source.Kind{Type: &rdbcv1alpha1.Rdbc{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to Secret
+	err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &rdbcv1alpha1.Rdbc{},
+	})
 	if err != nil {
 		return err
 	}
@@ -101,7 +113,9 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 	if dbExists {
-		return r.syncCR(rdbc, redisDb, redis)
+		if err := r.syncCR(rdbc, redisDb, redis); err != nil {
+			return reconcile.Result{}, err
+		}
 	} else {
 		if err := redis.CreateDb(redisDb); err != nil {
 			reqLogger.Error(err, "unable create new db")
@@ -110,13 +124,28 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 			}
 			return reconcile.Result{}, err
 		}
-		return r.syncCR(rdbc, redisDb, redis)
+		err := r.syncCR(rdbc, redisDb, redis)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	reconcileResult, err := r.manageSecret(rdbc, redisDb)
+	if err != nil {
+		message := fmt.Sprintf("%v", err)
+		if err := r.updateRdbcStatus(message, rdbc); err != nil {
+			reqLogger.Error(err, "Failed to update CR status")
+		}
+		return reconcile.Result{}, err
+	} else if err == nil && reconcileResult != nil {
+		// In case requeue required
+		return *reconcileResult, nil
 	}
 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis *RedisConfig) (reconcile.Result, error) {
+func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis *RedisConfig) error {
 	newDb := false
 	if _, ok := rdbc.ObjectMeta.Annotations["dbuid"]; !ok {
 		newDb = true
@@ -134,15 +163,16 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 			// If wasn't able to delete new created db, we are fucked up!
 			if err := redis.DeleteDb(redisDb); err != nil {
 				log.Error(err, "Houston, we have a problem! Kill me now, or I'll destroy you Redis cluster, madafaka!")
-				return reconcile.Result{}, err
+				return err
 			}
 		}
-		return reconcile.Result{}, err
+		return err
 	}
 	if err := r.updateRdbcStatus(fmt.Sprintf("%v", "db is ready"), rdbc); err != nil {
 		log.Error(err, "Failed to update CR status")
+		return err
 	}
-	return reconcile.Result{}, nil
+	return nil
 }
 
 func (r *ReconcileRdbc) initRedisDb(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig) (*RedisDb, error) {
@@ -192,6 +222,61 @@ func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisCo
 		}
 	}
 	return isRdbcMarkedToBeDeleted, nil
+}
+
+func (r *ReconcileRdbc) manageSecret(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb) (*reconcile.Result, error) {
+	secret := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: rdbc.Name, Namespace: rdbc.Namespace}, secret)
+	if err != nil && errors.IsNotFound(err) {
+		err := r.secretForRdbc(rdbc, redisDb, secret)
+		if err != nil {
+			log.Error(err, "error getting secret")
+			return &reconcile.Result{}, err
+		}
+		log.Info("Creating a new secret.", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+		err = r.client.Create(context.TODO(), secret)
+		if err != nil {
+			log.Error(err, "Failed to create new secret.", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+			return &reconcile.Result{}, err
+		}
+		return &reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		log.Error(err, "Failed to get secret.")
+		return &reconcile.Result{}, err
+	} else {
+		err := r.secretForRdbc(rdbc, redisDb, secret)
+		if err != nil {
+			log.Error(err, "error getting secret")
+			return &reconcile.Result{}, err
+		}
+		err = r.client.Update(context.TODO(), secret)
+		if err != nil {
+			log.Error(err, "Failed to create new secret.", "Secret.Namespace", secret.Namespace, "Secret.Name", secret.Name)
+			return &reconcile.Result{}, err
+		}
+	}
+	return nil, nil
+}
+
+func (r *ReconcileRdbc) secretForRdbc(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, secret *corev1.Secret) error {
+	labels := map[string]string{
+		"app":   rdbc.Name,
+		"dbuid": fmt.Sprint(redisDb.Uid),
+	}
+	stringData := map[string]string{
+		"endpoint": redisDb.endpoint,
+		"password": redisDb.Password,
+	}
+
+	secret.ObjectMeta.Name = rdbc.Name
+	secret.ObjectMeta.Namespace = rdbc.Namespace
+	secret.ObjectMeta.Labels = labels
+	secret.StringData = stringData
+	if err := controllerutil.SetControllerReference(rdbc, secret, r.scheme); err != nil {
+		log.Error(err, "Error set controller reference for secret ")
+		return err
+	}
+	return nil
 }
 
 func (r *ReconcileRdbc) finalizeRdbc(redis *RedisConfig, redisDb *RedisDb) error {

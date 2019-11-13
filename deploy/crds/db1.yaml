@@ -4,6 +4,6 @@ metadata:
   name: my-app-db-request-1
   namespace: default
 spec:
-  name: "my-app-db2"
+  name: "my-app-db1"
   size: 100
 

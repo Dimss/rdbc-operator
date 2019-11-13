@@ -1,0 +1,9 @@
+apiVersion: rdbc.cnative/v1alpha1
+kind: Rdbc
+metadata:
+  name: my-app-db-request-2
+  namespace: openshift
+spec:
+  name: "my-app-db2"
+  size: 100
+
