@@ -66,12 +66,6 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 			SchemaProps: spec.SchemaProps{
 				Description: "RdbcSpec defines the desired state of Rdbc",
 				Properties: map[string]spec.Schema{
-					"dbId": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -91,7 +85,7 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcSpec(ref common.ReferenceCallback) common
 						},
 					},
 				},
-				Required: []string{"dbId", "name", "size", "password"},
+				Required: []string{"name", "size", "password"},
 			},
 		},
 		Dependencies: []string{},
@@ -104,18 +98,6 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcStatus(ref common.ReferenceCallback) comm
 			SchemaProps: spec.SchemaProps{
 				Description: "RdbcStatus defines the observed state of Rdbc",
 				Properties: map[string]spec.Schema{
-					"dbEndpointUrl": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"dbUid": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"number"},
-							Format: "double",
-						},
-					},
 					"message": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -123,7 +105,7 @@ func schema_pkg_apis_rdbc_v1alpha1_RdbcStatus(ref common.ReferenceCallback) comm
 						},
 					},
 				},
-				Required: []string{"dbEndpointUrl", "dbUid", "message"},
+				Required: []string{"message"},
 			},
 		},
 		Dependencies: []string{},

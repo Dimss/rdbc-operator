@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"strconv"
 )
 
 var log = logf.Log.WithName("controller_rdbc")
@@ -110,8 +111,11 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 }
 
 func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis *RedisConfig) (reconcile.Result, error) {
-	origDbId := rdbc.Spec.DbId
-	rdbc.Spec.DbId = redisDb.Uid
+	newDb := false
+	if _, ok := rdbc.ObjectMeta.Annotations["dbuid"]; !ok {
+		newDb = true
+	}
+	rdbc.ObjectMeta.Annotations = map[string]string{"dbuid": fmt.Sprint(redisDb.Uid)}
 	rdbc.Spec.Name = redisDb.Name
 	rdbc.Spec.Size = redisDb.MemorySize
 	// Once the spec is updated with valid redis db parameters update the CR in K8S
@@ -119,7 +123,7 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 	// if it's new db request, remove the created db
 	if err := r.client.Update(context.TODO(), rdbc); err != nil {
 		log.Error(err, "failed to update RDBC CR", "Name", rdbc.Name)
-		if origDbId == 0 {
+		if newDb {
 			log.Info(fmt.Sprintf("unable to update RDBC CR afeter new DB created, gonna remove new DB, dbid: %d", redisDb.Uid))
 			// If wasn't able to delete new created db, we are fucked up!
 			if err := redis.DeleteDb(redisDb); err != nil {
@@ -133,18 +137,25 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 }
 
 func (r *ReconcileRdbc) initRedisDb(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig) (*RedisDb, error) {
-	// It's a new DB
-	if rdbc.Spec.DbId == 0 {
+
+	if dbidValue, ok := rdbc.ObjectMeta.Annotations["dbuid"]; ok {
+		// Existing DB, fetch db details and sync into cluster
+		dbid, err := strconv.Atoi(dbidValue)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("wasn't able to convert from string to int, dbid: %v", dbid))
+			return nil, err
+		}
+		return redis.LoadRedisDb(int32(dbid))
+
+	} else {
+		// It's a new DB
 		db, err := NewRedisDb(rdbc.Spec.Name, rdbc.Spec.Size, rdbc.Spec.Password, redis)
 		if err != nil {
 			return nil, err
 		}
 		return db, nil
-	} else {
-		// Existing DB, fetch db details and sync into cluster
-		db, err := redis.LoadRedisDb(rdbc.Spec.DbId)
-		return db, err
 	}
+
 }
 
 func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig, redisDb *RedisDb) (bool, error) {

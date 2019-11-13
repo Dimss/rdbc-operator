@@ -29,9 +29,6 @@ spec:
           type: object
         spec:
           properties:
-            dbId:
-              format: int32
-              type: integer
             name:
               type: string
             password:
@@ -45,16 +42,9 @@ spec:
           type: object
         status:
           properties:
-            dbEndpointUrl:
-              type: string
-            dbUid:
-              format: double
-              type: number
             message:
               type: string
           required:
-          - dbEndpointUrl
-          - dbUid
           - message
           type: object
   version: v1alpha1
