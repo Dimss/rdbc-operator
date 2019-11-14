@@ -303,6 +303,7 @@ func (r *ReconcileRdbc) addFinalizer(rdbc *rdbcv1alpha1.Rdbc) error {
 
 func (r *ReconcileRdbc) updateRdbcStatus(message string, rdbc *rdbcv1alpha1.Rdbc) error {
 	rdbc.Status.Message = message
+
 	if err := r.client.Status().Update(context.TODO(), rdbc); err != nil {
 		log.Error(err, "Failed to update CR status")
 		return err
