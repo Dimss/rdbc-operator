@@ -1,0 +1,29 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  annotations:
+    description: Template for building Dyncamic Admission WebHook
+    tags: infrastructure
+  name: redis-db
+objects:
+- apiVersion: rdbc.cnative/v1alpha1
+  kind: Rdbc
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+  spec:
+    name: ${NAME}
+    size: ${{SIZE}}
+parameters:
+- description: Name
+  name: NAME
+  value: "rdbc-operator"
+  required: true
+- description: Specify current namespace
+  name: NAMESPACE
+  value: "redis"
+  required: true
+- description: Set DB Size
+  name: SIZE
+  required: true
+  value: "100"

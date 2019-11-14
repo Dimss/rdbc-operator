@@ -82,17 +82,11 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
-		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
-	}
-	redisDb, err := r.initRedisDb(rdbc, redis)
-	if err != nil {
-		reqLogger.Error(err, "Failed to init RedisDB")
 		return reconcile.Result{}, err
 	}
 
 	// Init finalizers
-	isRdbcMarkedToBeDeleted, err := r.initFinalization(rdbc, redis, redisDb)
+	isRdbcMarkedToBeDeleted, err := r.initFinalization(rdbc, redis)
 	if err != nil {
 		reqLogger.Error(err, "Failed to initialize finalizer")
 		if err := r.updateRdbcStatus(fmt.Sprintf("%v", err), rdbc); err != nil {
@@ -101,6 +95,13 @@ func (r *ReconcileRdbc) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 	if isRdbcMarkedToBeDeleted {
+		return reconcile.Result{}, err
+	}
+
+	// Init redis db
+	redisDb, err := r.initRedisDb(rdbc, redis)
+	if err != nil {
+		reqLogger.Error(err, "Failed to init RedisDB")
 		return reconcile.Result{}, err
 	}
 
@@ -161,7 +162,7 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 		if newDb {
 			log.Info(fmt.Sprintf("unable to update RDBC CR afeter new DB created, gonna remove new DB, dbid: %d", redisDb.Uid))
 			// If wasn't able to delete new created db, we are fucked up!
-			if err := redis.DeleteDb(redisDb); err != nil {
+			if err := redis.DeleteDb(redisDb.Uid); err != nil {
 				log.Error(err, "Houston, we have a problem! Kill me now, or I'll destroy you Redis cluster, madafaka!")
 				return err
 			}
@@ -177,15 +178,15 @@ func (r *ReconcileRdbc) syncCR(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb, redis 
 
 func (r *ReconcileRdbc) initRedisDb(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig) (*RedisDb, error) {
 
-	if dbidValue, ok := rdbc.ObjectMeta.Annotations["dbuid"]; ok {
-		// Existing DB, fetch db details and sync into cluster
-		dbid, err := strconv.Atoi(dbidValue)
-		if err != nil {
-			log.Error(err, fmt.Sprintf("wasn't able to convert from string to int, dbid: %v", dbid))
-			return nil, err
-		}
-		return redis.LoadRedisDb(int32(dbid))
-
+	// Try fetch dbuid from CR annotation
+	dbUid, err := getDbUid(rdbc)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("wasn't able to convert from string to int for CR: %s", rdbc.Spec.Name))
+		return nil, err
+	}
+	// If dbuid is set, load redis db
+	if dbUid != nil {
+		return redis.LoadRedisDb(*dbUid)
 	} else {
 		// It's a new DB
 		db, err := NewRedisDb(rdbc.Spec.Name, rdbc.Spec.Size, rdbc.Spec.Password, redis)
@@ -194,21 +195,20 @@ func (r *ReconcileRdbc) initRedisDb(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig)
 		}
 		return db, nil
 	}
-
 }
 
-func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig, redisDb *RedisDb) (bool, error) {
+func (r *ReconcileRdbc) initFinalization(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig) (bool, error) {
 	isRdbcMarkedToBeDeleted := rdbc.GetDeletionTimestamp() != nil
 	if isRdbcMarkedToBeDeleted {
 		if contains(rdbc.GetFinalizers(), rdbcFinalizer) {
-			if err := r.finalizeRdbc(redis, redisDb); err != nil {
+			if err := r.finalizeRdbc(rdbc, redis); err != nil {
 				log.Error(err, "Failed to run finalizer")
 				return isRdbcMarkedToBeDeleted, err
 			}
 			rdbc.SetFinalizers(remove(rdbc.GetFinalizers(), rdbcFinalizer))
 			err := r.client.Update(context.TODO(), rdbc)
 			if err != nil {
-				log.Error(err, "Failed to delete finalizer")
+				log.Error(err, "wasn't able to update CR")
 				return isRdbcMarkedToBeDeleted, err
 			}
 		}
@@ -279,13 +279,21 @@ func (r *ReconcileRdbc) secretForRdbc(rdbc *rdbcv1alpha1.Rdbc, redisDb *RedisDb,
 	return nil
 }
 
-func (r *ReconcileRdbc) finalizeRdbc(redis *RedisConfig, redisDb *RedisDb) error {
-	err := redis.DeleteDb(redisDb)
+func (r *ReconcileRdbc) finalizeRdbc(rdbc *rdbcv1alpha1.Rdbc, redis *RedisConfig) error {
+
+	// Try fetch dbuid from CR annotation
+	dbId, err := getDbUid(rdbc)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("wasn't able to convert from string to int for CR: %s", rdbc.Spec.Name))
+		return err
+	}
+
+	err = redis.DeleteDb(*dbId)
 	if err != nil {
 		log.Error(err, "Failed to delete db at finalizer")
 		return err
 	}
-	log.Info(fmt.Sprintf("Successfully finalized Rdbc: %s", redisDb.Name))
+	log.Info(fmt.Sprintf("Successfully finalized Rdbc: %d", dbId))
 	return nil
 }
 
@@ -303,8 +311,9 @@ func (r *ReconcileRdbc) addFinalizer(rdbc *rdbcv1alpha1.Rdbc) error {
 
 func (r *ReconcileRdbc) updateRdbcStatus(message string, rdbc *rdbcv1alpha1.Rdbc) error {
 	rdbc.Status.Message = message
-
-	if err := r.client.Status().Update(context.TODO(), rdbc); err != nil {
+	// https://github.com/operator-framework/operator-sdk/issues/981
+	//if err := r.client.Status().Update(context.TODO(), rdbc); err != nil {
+	if err := r.client.Update(context.TODO(), rdbc); err != nil {
 		log.Error(err, "Failed to update CR status")
 		return err
 	}
@@ -327,4 +336,28 @@ func remove(list []string, s string) []string {
 		}
 	}
 	return list
+}
+
+func getDbUid(rdbc *rdbcv1alpha1.Rdbc) (*int32, error) {
+	if dbidValue, ok := rdbc.ObjectMeta.Annotations["dbuid"]; ok {
+		// Existing DB, fetch db details and sync into cluster
+		dbid, err := strconv.Atoi(dbidValue)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("wasn't able to convert from string to int, dbid: %v", dbid))
+			return nil, err
+		}
+		dbUid := int32(dbid)
+		return &dbUid, nil
+	}
+	return nil, nil
+}
+
+func (r *ReconcileRdbc) removeFinalizerAndUpdateCR(rdbc *rdbcv1alpha1.Rdbc) error {
+	rdbc.SetFinalizers(remove(rdbc.GetFinalizers(), rdbcFinalizer))
+	err := r.client.Update(context.TODO(), rdbc)
+	if err != nil {
+		log.Error(err, "Failed to delete finalizer")
+		return err
+	}
+	return nil
 }

@@ -182,19 +182,19 @@ func (redis *RedisConfig) execApiRequest(url string, method string, body []byte)
 	return
 }
 
-func (redis *RedisConfig) DeleteDb(rdb *RedisDb) error {
+func (redis *RedisConfig) DeleteDb(dbId int32) error {
 
 	// Check if DB exists in the cluster
 
-	dBExists, err := redis.CheckIfDbExists(rdb.Uid)
+	dBExists, err := redis.CheckIfDbExists(dbId)
 	if !dBExists {
-		log.Error(err, fmt.Sprintf("db: %s doesn't exists in cluster, asuming it was deleted manually", rdb.Name))
+		log.Error(err, fmt.Sprintf("dbid: %s doesn't exists in cluster, asuming it was deleted either manually or by finilizer but the CR wasn't update properly", dbId))
 		// if db not exists, assume it was delete manually,
 		// and proceed normally with the request
 		return nil
 	}
 	// Compose URL
-	url := fmt.Sprintf("%v/v1/bdbs/%v", redis.APIUrl, rdb.Uid)
+	url := fmt.Sprintf("%v/v1/bdbs/%v", redis.APIUrl, dbId)
 	resp, err := redis.execApiRequest(url, "DELETE", nil)
 	if err != nil {
 		return fmt.Errorf("failed to executed DELETE request for url: %s", url)
