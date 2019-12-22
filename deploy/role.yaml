@@ -38,7 +38,7 @@ rules:
   resourceNames:
   - rdbc-operator
   resources:
-  - deployments/finalizers
+  - deployments/finalizersidea
   verbs:
   - update
 - apiGroups:

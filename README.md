@@ -31,11 +31,9 @@ metadata:
   name: my-app-db-request-1
   namespace: default
 spec:
-  # Name of the redis DB
-  name: "my-app-db2"
-  # Password for the redis DB
-  password: "1234"
-  # Size in Megabytes for redis DB
+  # DB Name
+  name: "my-app-db1"
+  # DB Size in Mb
   size: 100
 ```
 
